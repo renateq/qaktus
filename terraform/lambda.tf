@@ -31,6 +31,26 @@ resource "aws_lambda_function" "generate_link" {
   runtime          = "python3.12"
   handler          = "generate_link.handler"
   role             = aws_iam_role.lambda_exec.arn
+
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.links.name
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_dynamodb" {
+  name = "qaktus-lambda-dynamodb"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:PutItem"]
+      Resource = aws_dynamodb_table.links.arn
+    }]
+  })
 }
 
 resource "aws_lambda_permission" "apigw" {
