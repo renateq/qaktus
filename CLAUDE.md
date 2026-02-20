@@ -17,9 +17,17 @@ uv add <package>           # runtime dependency
 uv add --dev <package>     # dev-only dependency
 ```
 
+## Running Tests
+
+```bash
+uv run pytest          # run all tests
+uv run pytest -x       # stop on first failure
+uv run pytest backend/lambda/test_generate_link.py::TestHandler -v  # single class
+```
+
 ## Running the Lambda Locally
 
-The Lambda handler can be invoked directly in Python. There is no test suite yet. To exercise the handler manually:
+The Lambda handler can be invoked directly in Python. To exercise the handler manually:
 
 ```python
 from backend.lambda.generate_link import handler
