@@ -2,8 +2,8 @@ data "aws_caller_identity" "current" {}
 
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "${path.root}/../backend/lambda/generate_link.py"
-  output_path = "${path.root}/../backend/lambda/generate_link.zip"
+  source_file = "${path.root}/../lambda/generate_link.py"
+  output_path = "${path.root}/../lambda/generate_link.zip"
 }
 
 resource "aws_iam_role" "lambda_exec" {

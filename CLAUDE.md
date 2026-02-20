@@ -44,7 +44,7 @@ Tests run automatically on every PR to `master` via GitHub Actions (`.github/wor
 
 ## Terraform
 
-Infrastructure lives in `terraform/`. It provisions:
+Infrastructure lives in `backend/terraform/`. It provisions:
 - **Lambda** — `qaktus-generate-link` (Python 3.12, handler `generate_link.handler`)
 - **API Gateway** — HTTP API v2, route `POST /generate-link` proxied to the Lambda
 - **IAM** — execution role with `AWSLambdaBasicExecutionRole`
@@ -52,10 +52,10 @@ Infrastructure lives in `terraform/`. It provisions:
 State is stored in S3 (`qaktus-tf` bucket, `us-east-1`).
 
 ```bash
-terraform -chdir=terraform init
-terraform -chdir=terraform plan
-terraform -chdir=terraform apply
-terraform -chdir=terraform output api_endpoint   # prints the live URL
+terraform -chdir=backend/terraform init
+terraform -chdir=backend/terraform plan
+terraform -chdir=backend/terraform apply
+terraform -chdir=backend/terraform output api_endpoint   # prints the live URL
 ```
 
 Sample request:
@@ -86,10 +86,8 @@ Short codes are 5-character base62 strings (`0-9a-zA-Z`), yielding ~916 million 
 AWS Lambda entry point. The `handler` function:
 1. Parses and validates the JSON body — expects `urls: [{original_url, weight}]`.
 2. Builds a `targets` list adding a `visits` counter to each entry.
-3. Stores the mapping in DynamoDB (currently mocked with an in-memory `_store` dict using a conditional put to detect collisions).
+3. Stores the mapping in DynamoDB using a conditional `PutItem` (`attribute_not_exists`) to detect collisions.
 4. Returns `201` with `short_code`, `short_url`, and the `targets` list.
-
-The mock storage (`_mock_put_item`) simulates DynamoDB's conditional write: it raises `KeyError` on duplicate keys, which `put_item_with_retry` catches to regenerate a code.
 
 ### `research/generate_short_url.ipynb`
 
