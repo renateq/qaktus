@@ -27,7 +27,7 @@ uv run pytest backend/lambda/test_generate_link.py::TestHandler -v  # single cla
 
 ## Running the Lambda Locally
 
-The Lambda handler can be invoked directly in Python. To exercise the handler manually:
+The Lambda handlers can be invoked directly in Python. To exercise them manually:
 
 ```python
 from backend.lambda.generate_link import handler
@@ -35,6 +35,13 @@ from backend.lambda.generate_link import handler
 event = {
     "body": '{"urls": [{"original_url": "https://example.com", "weight": 1}]}'
 }
+result = handler(event, None)
+```
+
+```python
+from backend.lambda.redirect import handler
+
+event = {"pathParameters": {"short_code": "abc12"}}
 result = handler(event, None)
 ```
 
@@ -46,8 +53,9 @@ Tests run automatically on every PR to `master` via GitHub Actions (`.github/wor
 
 Infrastructure lives in `backend/terraform/`. It provisions:
 - **Lambda** — `qaktus-generate-link` (Python 3.12, handler `generate_link.handler`)
-- **API Gateway** — HTTP API v2, route `POST /generate-link` proxied to the Lambda
-- **IAM** — execution role with `AWSLambdaBasicExecutionRole`
+- **Lambda** — `qaktus-redirect` (Python 3.12, handler `redirect.handler`)
+- **API Gateway** — HTTP API v2, routes `POST /generate-link` and `GET /{short_code}` proxied to their respective Lambdas
+- **IAM** — execution roles; `generate-link` has `dynamodb:PutItem`, `redirect` has `dynamodb:GetItem`
 
 State is stored in S3 (`qaktus-tf` bucket, `us-east-1`).
 
@@ -58,11 +66,15 @@ terraform -chdir=backend/terraform apply
 terraform -chdir=backend/terraform output api_endpoint   # prints the live URL
 ```
 
-Sample request:
+Sample requests:
 ```bash
-curl -X POST <api_endpoint> \
+# Create a short link
+curl -X POST <api_endpoint>/generate-link \
   -H "Content-Type: application/json" \
   -d '{"urls": [{"original_url": "https://example.com", "weight": 70}, {"original_url": "https://example.com/beta", "weight": 30}]}'
+
+# Follow a short link (returns 301)
+curl -v <api_endpoint>/<short_code>
 ```
 
 ## Research Notebooks
@@ -83,11 +95,19 @@ Short codes are 5-character base62 strings (`0-9a-zA-Z`), yielding ~916 million 
 
 ### `backend/lambda/generate_link.py`
 
-AWS Lambda entry point. The `handler` function:
+AWS Lambda entry point for `POST /generate-link`. The `handler` function:
 1. Parses and validates the JSON body — expects `urls: [{original_url, weight}]`.
 2. Builds a `targets` list adding a `visits` counter to each entry.
 3. Stores the mapping in DynamoDB using a conditional `PutItem` (`attribute_not_exists`) to detect collisions.
 4. Returns `201` with `short_code`, `short_url`, and the `targets` list.
+
+### `backend/lambda/redirect.py`
+
+AWS Lambda entry point for `GET /{short_code}`. The `handler` function:
+1. Reads `short_code` from `event["pathParameters"]["short_code"]`.
+2. Fetches the item from DynamoDB; returns `404` if not found.
+3. Selects a destination URL via weighted random sampling (`random.choices`). Weights are cast to `float` because DynamoDB returns numbers as `Decimal`.
+4. Returns `301` with a `Location` header pointing to the chosen URL.
 
 ### `research/generate_short_url.ipynb`
 
