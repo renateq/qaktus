@@ -1,3 +1,4 @@
+
 resource "aws_apigatewayv2_api" "api" {
   name          = "qaktus-api"
   protocol_type = "HTTP"

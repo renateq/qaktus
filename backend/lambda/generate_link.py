@@ -1,8 +1,12 @@
 import json
 import logging
+import os
 import random
 import string
 from typing import Any
+
+import boto3
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -10,15 +14,27 @@ logger.setLevel(logging.INFO)
 BASE62 = string.digits + string.ascii_lowercase + string.ascii_uppercase
 MAX_RETRIES = 5
 
-# --- Mock storage ---
-_store: dict[str, list[dict]] = {}
+# --- DynamoDB storage ---
+_table = None
 
 
-def _mock_put_item(short_code: str, targets: list[dict]) -> None:
-    """Simulates a conditional DynamoDB PutItem. Raises if the key already exists."""
-    if short_code in _store:
-        raise KeyError(f"Short code '{short_code}' already exists")
-    _store[short_code] = targets
+def _get_table():
+    global _table
+    if _table is None:
+        _table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+    return _table
+
+
+def put_item(short_code: str, targets: list[dict]) -> None:
+    try:
+        _get_table().put_item(
+            Item={"short_code": short_code, "targets": targets},
+            ConditionExpression="attribute_not_exists(short_code)",
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            raise KeyError(f"Short code '{short_code}' already exists") from e
+        raise
 
 
 # --- Core logic ---
@@ -37,7 +53,7 @@ def build_targets(urls: list[dict]) -> list[dict]:
 def put_item_with_retry(short_code: str, targets: list[dict]) -> str:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            _mock_put_item(short_code, targets)
+            put_item(short_code, targets)
             logger.info("Short code created: %s (attempt %d)", short_code, attempt)
             return short_code
         except KeyError:

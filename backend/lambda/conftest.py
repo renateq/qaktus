@@ -3,7 +3,7 @@ import generate_link
 
 
 @pytest.fixture(autouse=True)
-def reset_store():
-    generate_link._store.clear()
+def reset_table():
+    generate_link._table = None
     yield
-    generate_link._store.clear()
+    generate_link._table = None

@@ -1,16 +1,17 @@
 import json
 import random
+from unittest.mock import MagicMock
 
 import pytest
 import generate_link
+from botocore.exceptions import ClientError
 from generate_link import (
     BASE62,
     MAX_RETRIES,
-    _mock_put_item,
-    _store,
     build_targets,
     generate_base62,
     handler,
+    put_item,
     put_item_with_retry,
     response,
     validate_body,
@@ -160,24 +161,45 @@ class TestValidateBody:
 
 
 # ---------------------------------------------------------------------------
-# TestMockPutItem
+# TestPutItem
 # ---------------------------------------------------------------------------
 
-class TestMockPutItem:
-    def test_stores_new_code(self):
-        _mock_put_item("abc12", [{"url": "https://example.com", "weight": 1, "visits": 0}])
-        assert "abc12" in generate_link._store
+class TestPutItem:
+    @pytest.fixture(autouse=True)
+    def mock_table(self):
+        generate_link._table = MagicMock()
+        yield generate_link._table
 
-    def test_raises_key_error_on_duplicate(self):
-        generate_link._store["abc12"] = []
+    def test_calls_put_item_on_table(self, mock_table):
+        put_item("abc12", [{"url": "https://example.com", "weight": 1, "visits": 0}])
+        mock_table.put_item.assert_called_once()
+
+    def test_put_item_called_with_correct_item(self, mock_table):
+        targets = [{"url": "https://example.com", "weight": 1, "visits": 0}]
+        put_item("abc12", targets)
+        call_kwargs = mock_table.put_item.call_args[1]
+        assert call_kwargs["Item"] == {"short_code": "abc12", "targets": targets}
+
+    def test_raises_key_error_on_conditional_check_failure(self, mock_table):
+        mock_table.put_item.side_effect = ClientError(
+            {"Error": {"Code": "ConditionalCheckFailedException", "Message": "already exists"}},
+            "PutItem",
+        )
         with pytest.raises(KeyError):
-            _mock_put_item("abc12", [])
+            put_item("abc12", [])
 
-    def test_two_different_codes_can_be_stored(self):
-        _mock_put_item("aaaaa", [])
-        _mock_put_item("bbbbb", [])
-        assert "aaaaa" in generate_link._store
-        assert "bbbbb" in generate_link._store
+    def test_two_different_codes_can_be_stored(self, mock_table):
+        put_item("aaaaa", [])
+        put_item("bbbbb", [])
+        assert mock_table.put_item.call_count == 2
+
+    def test_other_client_error_is_not_swallowed(self, mock_table):
+        mock_table.put_item.side_effect = ClientError(
+            {"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "throttled"}},
+            "PutItem",
+        )
+        with pytest.raises(ClientError):
+            put_item("abc12", [])
 
 
 # ---------------------------------------------------------------------------
@@ -185,58 +207,73 @@ class TestMockPutItem:
 # ---------------------------------------------------------------------------
 
 class TestPutItemWithRetry:
-    def test_success_on_first_attempt(self):
+    @pytest.fixture(autouse=True)
+    def mock_table(self):
+        generate_link._table = MagicMock()
+        yield generate_link._table
+
+    def test_success_on_first_attempt(self, mock_table):
         code = put_item_with_retry("hello", [])
         assert code == "hello"
-        assert "hello" in generate_link._store
+        mock_table.put_item.assert_called_once()
 
-    def test_success_after_one_collision(self, monkeypatch):
-        generate_link._store["first"] = []
+    def test_success_after_one_collision(self, monkeypatch, mock_table):
         codes = iter(["second"])
         monkeypatch.setattr(generate_link, "generate_base62", lambda: next(codes))
+
+        call_count = {"n": 0}
+
+        def side_effect(**kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise ClientError(
+                    {"Error": {"Code": "ConditionalCheckFailedException", "Message": ""}},
+                    "PutItem",
+                )
+
+        mock_table.put_item.side_effect = side_effect
         code = put_item_with_retry("first", [])
         assert code == "second"
 
-    def test_success_after_four_collisions(self, monkeypatch):
+    def test_success_after_four_collisions(self, monkeypatch, mock_table):
         call_count = {"n": 0}
-        original_mock_put = generate_link._mock_put_item
 
-        def flaky_put(short_code, targets):
+        def side_effect(**kwargs):
             call_count["n"] += 1
             if call_count["n"] < 5:
-                raise KeyError("collision")
-            original_mock_put(short_code, targets)
+                raise ClientError(
+                    {"Error": {"Code": "ConditionalCheckFailedException", "Message": ""}},
+                    "PutItem",
+                )
 
-        monkeypatch.setattr(generate_link, "_mock_put_item", flaky_put)
+        mock_table.put_item.side_effect = side_effect
         code = put_item_with_retry("code0", [])
-        # After 4 collisions the code is regenerated, so just assert success
         assert isinstance(code, str)
         assert len(code) > 0
-        assert code in generate_link._store
 
-    def test_raises_runtime_error_after_max_retries(self, monkeypatch):
-        monkeypatch.setattr(generate_link, "_mock_put_item", lambda c, t: (_ for _ in ()).throw(KeyError("always")))
+    def test_raises_runtime_error_after_max_retries(self, monkeypatch, mock_table):
+        mock_table.put_item.side_effect = ClientError(
+            {"Error": {"Code": "ConditionalCheckFailedException", "Message": ""}},
+            "PutItem",
+        )
         with pytest.raises(RuntimeError):
             put_item_with_retry("code0", [])
 
-    def test_generate_base62_called_once_per_collision(self, monkeypatch):
+    def test_generate_base62_called_once_per_collision(self, monkeypatch, mock_table):
         gen_calls = {"n": 0}
-        put_calls = {"n": 0}
 
         def counting_gen():
             gen_calls["n"] += 1
             return "newcode"
 
-        def always_fail(short_code, targets):
-            put_calls["n"] += 1
-            raise KeyError("collision")
-
+        mock_table.put_item.side_effect = ClientError(
+            {"Error": {"Code": "ConditionalCheckFailedException", "Message": ""}},
+            "PutItem",
+        )
         monkeypatch.setattr(generate_link, "generate_base62", counting_gen)
-        monkeypatch.setattr(generate_link, "_mock_put_item", always_fail)
         with pytest.raises(RuntimeError):
             put_item_with_retry("start", [])
 
-        # generate_base62 is called once after each collision (all MAX_RETRIES attempts fail)
         assert gen_calls["n"] == MAX_RETRIES
 
 
@@ -277,6 +314,11 @@ class TestHandler:
         "body": json.dumps({"urls": [{"original_url": "https://example.com", "weight": 1}]})
     }
 
+    @pytest.fixture(autouse=True)
+    def mock_table(self):
+        generate_link._table = MagicMock()
+        yield generate_link._table
+
     def test_success_returns_201(self):
         result = handler(self._valid_event, None)
         assert result["statusCode"] == 201
@@ -300,10 +342,9 @@ class TestHandler:
         assert body["targets"][0]["url"] == "https://example.com"
         assert body["targets"][0]["visits"] == 0
 
-    def test_success_code_is_stored_in_store(self):
-        result = handler(self._valid_event, None)
-        body = json.loads(result["body"])
-        assert body["short_code"] in generate_link._store
+    def test_success_put_item_called(self, mock_table):
+        handler(self._valid_event, None)
+        mock_table.put_item.assert_called_once()
 
     def test_success_multiple_urls_all_targets_present(self):
         event = {
