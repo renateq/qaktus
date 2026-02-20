@@ -38,6 +38,33 @@ event = {
 result = handler(event, None)
 ```
 
+## CI
+
+Tests run automatically on every PR to `master` via GitHub Actions (`.github/workflows/test.yml`). The same `uv run pytest` command is used locally and in CI.
+
+## Terraform
+
+Infrastructure lives in `terraform/`. It provisions:
+- **Lambda** — `qaktus-generate-link` (Python 3.12, handler `generate_link.handler`)
+- **API Gateway** — HTTP API v2, route `POST /generate-link` proxied to the Lambda
+- **IAM** — execution role with `AWSLambdaBasicExecutionRole`
+
+State is stored in S3 (`qaktus-tf` bucket, `us-east-1`).
+
+```bash
+terraform -chdir=terraform init
+terraform -chdir=terraform plan
+terraform -chdir=terraform apply
+terraform -chdir=terraform output api_endpoint   # prints the live URL
+```
+
+Sample request:
+```bash
+curl -X POST <api_endpoint> \
+  -H "Content-Type: application/json" \
+  -d '{"urls": [{"original_url": "https://example.com", "weight": 70}, {"original_url": "https://example.com/beta", "weight": 30}]}'
+```
+
 ## Research Notebooks
 
 Jupyter notebooks live in `research/`. The project registers a `qaktus` kernel:
