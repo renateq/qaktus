@@ -10,6 +10,7 @@ import { Item } from "@/components/ui/item";
 import {
   CirclePlus,
   Clipboard,
+  ClipboardCheck,
   Link,
   LoaderCircle,
   X,
@@ -26,15 +27,39 @@ enum State {
 export default function Home() {
   const [state, setState] = useState(State.generate);
   const [urls, setUrls] = useState<string[]>([""]);
-  const [shortCode, setShortCode] = useState("");
+  const [shortUrl, setShortUrl] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
 
-  function generateShortLink() {
+  async function generateShortLink() {
     setState(State.generating);
-    // TODO: Send a request
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/generate-link`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          urls: urls.map((url) => {
+            return {
+              original_url: url,
+              weight: 1,
+            };
+          }),
+        }),
+      },
+    );
+
+    console.log(res);
+
+    const { short_url } = await res.json();
 
     setUrls([""]);
-    setShortCode("aD2f3");
+    setShortUrl(short_url);
     setState(State.generated);
+  }
+
+  function copyGeneratedUrl() {
+    navigator.clipboard.writeText(shortUrl);
+    setIsCopied(true);
   }
 
   return (
@@ -107,10 +132,14 @@ export default function Home() {
         ) : (
           <>
             <Item variant="muted" className="mt-10 justify-between">
-              <p className="text-lg">https://qaktus.com/{shortCode}</p>
-              <Button variant="ghost" className="h-10">
-                <Clipboard className="text-xl" size={30} />
-                Copy
+              <p className="text-lg">{shortUrl}</p>
+              <Button
+                variant="ghost"
+                className="h-10"
+                onClick={copyGeneratedUrl}
+              >
+                {isCopied ? <ClipboardCheck /> : <Clipboard />}
+                {isCopied ? "Copied" : "Copy"}
               </Button>
             </Item>
             <div className="mt-10 flex justify-center">
@@ -118,6 +147,7 @@ export default function Home() {
                 variant="ghost"
                 onClick={() => {
                   setUrls([""]);
+                  setIsCopied(false);
                   setState(State.generate);
                 }}
               >
