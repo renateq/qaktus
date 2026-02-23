@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Item } from "@/components/ui/item";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Clipboard, ClipboardCheck } from "lucide-react";
 
 interface GeneratedUrlDisplayProps {
@@ -19,9 +20,15 @@ export function GeneratedUrlDisplay({
 }: GeneratedUrlDisplayProps) {
   return (
     <>
-      <Item variant="muted" className="mt-10 justify-between">
-        <p className="text-lg">{shortUrl}</p>
-        <Button variant="ghost" className="h-10" onClick={onCopy}>
+      <Item
+        variant="muted"
+        className="mt-10 flex-nowrap items-center justify-between"
+      >
+        <ScrollArea className="max-w-[calc(100%-7rem)] flex-1">
+          <p className="text-base whitespace-nowrap lg:text-lg">{shortUrl}</p>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+        <Button variant="ghost" className="h-10 w-24 shrink-0" onClick={onCopy}>
           {isCopied ? <ClipboardCheck /> : <Clipboard />}
           {isCopied ? "Copied" : "Copy"}
         </Button>
