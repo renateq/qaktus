@@ -44,7 +44,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5rem)] pt-20">
+    <main className="min-h-[calc(100dvh-5rem)] px-10 pt-20">
       <p className="text-center text-3xl font-bold">
         One link, multiple destinations.
       </p>
