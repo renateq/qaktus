@@ -288,7 +288,12 @@ class TestResponseHelper:
 
     def test_headers_content_type(self):
         r = response(200, {})
-        assert r["headers"] == {"Content-Type": "application/json"}
+        assert r["headers"] == {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "https://dashboard.qaktus.app",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+        }
 
     def test_body_is_json_string_not_dict(self):
         r = response(200, {"key": "value"})

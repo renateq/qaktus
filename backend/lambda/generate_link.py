@@ -81,8 +81,13 @@ def validate_body(body: dict) -> str | None:
 def response(status_code: int, body: Any) -> dict:
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
         "body": json.dumps(body),
+        "headers": {
+            "Access-Control-Allow-Origin": "https://dashboard.qaktus.app",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+            "Content-Type": "application/json"
+        },
     }
 
 
