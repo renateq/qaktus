@@ -11,8 +11,9 @@ export default function Home() {
   const [urls, setUrls] = useState<string[]>([""]);
   const [shortUrl, setShortUrl] = useState("");
   const [isCopied, setIsCopied] = useState(false);
+  const [isUsingCustomWeights, setIsUsingCustomWeights] = useState(false);
 
-  async function generateShortLink() {
+  async function generateShortLink(weights?: number[]) {
     setStatus("generating");
 
     const res = await fetch(
@@ -20,7 +21,10 @@ export default function Home() {
       {
         method: "POST",
         body: JSON.stringify({
-          urls: urls.map((url) => ({ original_url: url, weight: 1 })),
+          urls: urls.map((url, i) => ({
+            original_url: url,
+            weight: weights?.[i] ?? 1,
+          })),
         }),
       },
     );
@@ -70,6 +74,8 @@ export default function Home() {
             }
             onGenerate={generateShortLink}
             isGenerating={status === "generating"}
+            isUsingCustomWeights={isUsingCustomWeights}
+            setIsUsingCustomWeights={setIsUsingCustomWeights}
           />
         ) : (
           <GeneratedUrlDisplay
