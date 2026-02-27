@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const supabase = createServerSupabaseClient();
   const { error } = await supabase
     .from("waitlist")
-    .insert({ email: email.trim() });
+    .insert({ email: email.trim(), environment: process.env.NODE_ENV === "production" ? "prod" : "dev" });
 
   if (error) {
     if (error.code === "23505") {
