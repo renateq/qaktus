@@ -112,3 +112,33 @@ AWS Lambda entry point for `GET /{short_code}`. The `handler` function:
 ### `research/generate_short_url.ipynb`
 
 Notebook that documents the base62 approach and analyses collision probability at various scales.
+
+## Web App (`web-app/`)
+
+Next.js 16 frontend (React 19, TypeScript, Tailwind CSS v4, shadcn/ui).
+
+### Running locally
+
+```bash
+cd web-app
+npm install
+npm run dev
+```
+
+Requires two environment variables (create `web-app/.env.local`):
+
+```
+NEXT_PUBLIC_API_URL=<api_endpoint from terraform output>
+SUPABASE_URL=<your supabase project url>
+SUPABASE_SERVICE_ROLE_KEY=<your supabase service role key>
+```
+
+### Key files
+
+- `app/page.tsx` — main page; URL form and generated-link display
+- `app/api/waitlist/route.ts` — `POST /api/waitlist`; inserts email into Supabase `waitlist` table; returns `201` on insert, `409` on duplicate
+- `components/navbar.tsx` — top nav; renders `WaitlistDialog`
+- `components/waitlist-dialog.tsx` — dialog wrapper for the waitlist form; hides trigger button after submission
+- `components/waitlist-form.tsx` — controlled form; calls `/api/waitlist`, shows inline success/error states
+- `lib/supabase.ts` — server-side Supabase client (service role)
+- `lib/email.ts` — `isValidEmail` helper
