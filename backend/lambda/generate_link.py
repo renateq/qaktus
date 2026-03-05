@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import string
+import time
 from typing import Any
 
 import boto3
@@ -25,10 +26,10 @@ def _get_table():
     return _table
 
 
-def put_item(short_code: str, targets: list[dict]) -> None:
+def put_item(short_code: str, targets: list[dict], expires_at: int) -> None:
     try:
         _get_table().put_item(
-            Item={"short_code": short_code, "targets": targets},
+            Item={"short_code": short_code, "targets": targets, "expires_at": expires_at},
             ConditionExpression="attribute_not_exists(short_code)",
         )
     except ClientError as e:
@@ -50,10 +51,10 @@ def build_targets(urls: list[dict]) -> list[dict]:
     ]
 
 
-def put_item_with_retry(short_code: str, targets: list[dict]) -> str:
+def put_item_with_retry(short_code: str, targets: list[dict], expires_at: int) -> str:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            put_item(short_code, targets)
+            put_item(short_code, targets, expires_at)
             logger.info("Short code created: %s (attempt %d)", short_code, attempt)
             return short_code
         except KeyError:
@@ -104,9 +105,10 @@ def handler(event: dict, context: Any) -> dict:
 
     targets = build_targets(body["urls"])
     short_code = generate_base62()
+    expires_at = int(time.time()) + 30 * 24 * 60 * 60
 
     try:
-        final_code = put_item_with_retry(short_code, targets)
+        final_code = put_item_with_retry(short_code, targets, expires_at)
     except RuntimeError as e:
         logger.error(str(e))
         return response(500, {"error": "Could not generate a unique short code. Please try again."})
@@ -117,5 +119,6 @@ def handler(event: dict, context: Any) -> dict:
             "short_code": final_code,
             "short_url": f"https://short.ly/{final_code}",
             "targets": targets,
+            "expires_at": expires_at,
         },
     )

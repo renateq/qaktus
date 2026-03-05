@@ -171,14 +171,14 @@ class TestPutItem:
         yield generate_link._table
 
     def test_calls_put_item_on_table(self, mock_table):
-        put_item("abc12", [{"url": "https://example.com", "weight": 1, "visits": 0}])
+        put_item("abc12", [{"url": "https://example.com", "weight": 1, "visits": 0}], 9999999999)
         mock_table.put_item.assert_called_once()
 
     def test_put_item_called_with_correct_item(self, mock_table):
         targets = [{"url": "https://example.com", "weight": 1, "visits": 0}]
-        put_item("abc12", targets)
+        put_item("abc12", targets, 9999999999)
         call_kwargs = mock_table.put_item.call_args[1]
-        assert call_kwargs["Item"] == {"short_code": "abc12", "targets": targets}
+        assert call_kwargs["Item"] == {"short_code": "abc12", "targets": targets, "expires_at": 9999999999}
 
     def test_raises_key_error_on_conditional_check_failure(self, mock_table):
         mock_table.put_item.side_effect = ClientError(
@@ -186,11 +186,11 @@ class TestPutItem:
             "PutItem",
         )
         with pytest.raises(KeyError):
-            put_item("abc12", [])
+            put_item("abc12", [], 9999999999)
 
     def test_two_different_codes_can_be_stored(self, mock_table):
-        put_item("aaaaa", [])
-        put_item("bbbbb", [])
+        put_item("aaaaa", [], 9999999999)
+        put_item("bbbbb", [], 9999999999)
         assert mock_table.put_item.call_count == 2
 
     def test_other_client_error_is_not_swallowed(self, mock_table):
@@ -199,7 +199,7 @@ class TestPutItem:
             "PutItem",
         )
         with pytest.raises(ClientError):
-            put_item("abc12", [])
+            put_item("abc12", [], 9999999999)
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ class TestPutItemWithRetry:
         yield generate_link._table
 
     def test_success_on_first_attempt(self, mock_table):
-        code = put_item_with_retry("hello", [])
+        code = put_item_with_retry("hello", [], 9999999999)
         assert code == "hello"
         mock_table.put_item.assert_called_once()
 
@@ -232,7 +232,7 @@ class TestPutItemWithRetry:
                 )
 
         mock_table.put_item.side_effect = side_effect
-        code = put_item_with_retry("first", [])
+        code = put_item_with_retry("first", [], 9999999999)
         assert code == "second"
 
     def test_success_after_four_collisions(self, monkeypatch, mock_table):
@@ -247,7 +247,7 @@ class TestPutItemWithRetry:
                 )
 
         mock_table.put_item.side_effect = side_effect
-        code = put_item_with_retry("code0", [])
+        code = put_item_with_retry("code0", [], 9999999999)
         assert isinstance(code, str)
         assert len(code) > 0
 
@@ -257,7 +257,7 @@ class TestPutItemWithRetry:
             "PutItem",
         )
         with pytest.raises(RuntimeError):
-            put_item_with_retry("code0", [])
+            put_item_with_retry("code0", [], 9999999999)
 
     def test_generate_base62_called_once_per_collision(self, monkeypatch, mock_table):
         gen_calls = {"n": 0}
@@ -272,7 +272,7 @@ class TestPutItemWithRetry:
         )
         monkeypatch.setattr(generate_link, "generate_base62", counting_gen)
         with pytest.raises(RuntimeError):
-            put_item_with_retry("start", [])
+            put_item_with_retry("start", [], 9999999999)
 
         assert gen_calls["n"] == MAX_RETRIES
 
@@ -401,11 +401,17 @@ class TestHandler:
         result = handler(event, None)
         assert result["statusCode"] == 400
 
+    def test_success_body_contains_expires_at(self):
+        result = handler(self._valid_event, None)
+        body = json.loads(result["body"])
+        assert "expires_at" in body
+        assert isinstance(body["expires_at"], int)
+
     def test_put_item_retry_exhausted_returns_500(self, monkeypatch):
         monkeypatch.setattr(
             generate_link,
             "put_item_with_retry",
-            lambda code, targets: (_ for _ in ()).throw(RuntimeError("exhausted")),
+            lambda code, targets, expires_at: (_ for _ in ()).throw(RuntimeError("exhausted")),
         )
         result = handler(self._valid_event, None)
         assert result["statusCode"] == 500
@@ -414,7 +420,7 @@ class TestHandler:
         monkeypatch.setattr(
             generate_link,
             "put_item_with_retry",
-            lambda code, targets: (_ for _ in ()).throw(RuntimeError("exhausted")),
+            lambda code, targets, expires_at: (_ for _ in ()).throw(RuntimeError("exhausted")),
         )
         # Should not raise
         result = handler(self._valid_event, None)

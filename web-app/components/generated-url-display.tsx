@@ -7,6 +7,7 @@ import { Clipboard, ClipboardCheck } from "lucide-react";
 
 interface GeneratedUrlDisplayProps {
   shortUrl: string;
+  expiresAt: number | null;
   isCopied: boolean;
   onCopy(): void;
   onReset(): void;
@@ -14,10 +15,19 @@ interface GeneratedUrlDisplayProps {
 
 export function GeneratedUrlDisplay({
   shortUrl,
+  expiresAt,
   isCopied,
   onCopy,
   onReset,
 }: GeneratedUrlDisplayProps) {
+  const formattedDate = expiresAt
+    ? new Date(expiresAt * 1000).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
   return (
     <>
       <Item
@@ -33,6 +43,11 @@ export function GeneratedUrlDisplay({
           {isCopied ? "Copied" : "Copy"}
         </Button>
       </Item>
+      {formattedDate && (
+        <p className="mt-3 text-center text-sm text-muted-foreground">
+          This link expires on {formattedDate}
+        </p>
+      )}
       <div className="mt-10 flex justify-center">
         <Button variant="ghost" onClick={onReset}>
           Generate a new link
