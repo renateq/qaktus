@@ -84,9 +84,6 @@ def response(status_code: int, body: Any) -> dict:
         "statusCode": status_code,
         "body": json.dumps(body),
         "headers": {
-            "Access-Control-Allow-Origin": "https://dashboard.qaktus.app",
-            "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
             "Content-Type": "application/json"
         },
     }
