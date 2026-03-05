@@ -10,6 +10,7 @@ export default function Home() {
   const [status, setStatus] = useState<Status>("idle");
   const [urls, setUrls] = useState<string[]>([""]);
   const [shortUrl, setShortUrl] = useState("");
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isUsingCustomWeights, setIsUsingCustomWeights] = useState(false);
 
@@ -29,10 +30,11 @@ export default function Home() {
       },
     );
 
-    const { short_code } = await res.json();
+    const { short_code, expires_at } = await res.json();
 
     setUrls([""]);
     setShortUrl(`${process.env.NEXT_PUBLIC_API_URL}/${short_code}`);
+    setExpiresAt(expires_at ?? null);
     setStatus("generated");
   }
 
@@ -44,6 +46,7 @@ export default function Home() {
   function reset() {
     setUrls([""]);
     setIsCopied(false);
+    setExpiresAt(null);
     setStatus("idle");
   }
 
@@ -80,6 +83,7 @@ export default function Home() {
         ) : (
           <GeneratedUrlDisplay
             shortUrl={shortUrl}
+            expiresAt={expiresAt}
             isCopied={isCopied}
             onCopy={copyGeneratedUrl}
             onReset={reset}
