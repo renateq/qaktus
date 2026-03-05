@@ -4,7 +4,7 @@ resource "aws_apigatewayv2_api" "api" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["http://localhost:3000", "https://qaktus.app"]
+    allow_origins = ["*"]
     allow_methods = ["GET", "POST", "OPTIONS"]
     allow_headers = ["Content-Type"]
     max_age       = 300

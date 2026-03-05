@@ -84,7 +84,8 @@ def response(status_code: int, body: Any) -> dict:
         "statusCode": status_code,
         "body": json.dumps(body),
         "headers": {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
         },
     }
 
