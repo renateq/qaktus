@@ -288,7 +288,10 @@ class TestResponseHelper:
 
     def test_headers_content_type(self):
         r = response(200, {})
-        assert r["headers"] == {"Content-Type": "application/json"}
+        assert r["headers"] == {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        }
 
     def test_body_is_json_string_not_dict(self):
         r = response(200, {"key": "value"})
