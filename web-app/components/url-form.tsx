@@ -72,13 +72,17 @@ export function UrlForm({
           {isUsingCustomWeights ? <SquareCheck /> : <Square />}
           Use custom weights
         </Toggle>
-        {isUsingCustomWeights ? (
+        {isUsingCustomWeights && !isGenerating ? (
           <Button
-            disabled={!allValid || isGenerating}
+            disabled={!allValid}
             className="h-10 w-full text-lg"
             onClick={() => setShowCustomWeightsDialog(true)}
           >
             Set Custom Weights <Pencil />
+          </Button>
+        ) : isUsingCustomWeights && isGenerating ? (
+          <Button disabled className="h-10 w-full text-lg">
+            Generating a Link <LoaderCircle className="animate-spin" />
           </Button>
         ) : (
           <Button
